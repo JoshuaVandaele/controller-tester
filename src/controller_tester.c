@@ -4,10 +4,20 @@
 #include "input_device.h"
 
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <libevdev/libevdev.h>
+
+volatile sig_atomic_t keep_running = 1;
+
+/**
+ * Signal handler to set the keep_running flag to 0 when a signal is received.
+ * This allows for graceful termination of the program.
+ */
+void handle_signal(int signal) { keep_running = 0; }
 
 int main() {
   struct input_device *devices = get_input_devices();
@@ -30,10 +40,19 @@ int main() {
     }
   }
 
+  printf("Testing device %d: %s (%s)\n"
+         "Press CTRL+C to exit.\n",
+         device_index, devices[device_index].name,
+         devices[device_index].handler);
+
   struct libevdev *dev = NULL;
   int fd = open(devices[device_index].handler, O_RDONLY | O_NONBLOCK);
   libevdev_new_from_fd(fd, &dev);
-  while (1) {
+
+  signal(SIGINT, handle_signal);
+  signal(SIGTERM, handle_signal);
+
+  while (keep_running) {
     struct input_event ev;
 
     if (libevdev_next_event(dev, LIBEVDEV_READ_FLAG_NORMAL, &ev) ==
@@ -58,6 +77,8 @@ int main() {
     }
   }
 
+  libevdev_free(dev);
+  close(fd);
   free_input_devices(devices);
 
   return EXIT_SUCCESS;
