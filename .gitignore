@@ -1,0 +1,7 @@
+# Dotfiles
+.*
+
+# Build
+build/
+compile_commands.json
+
